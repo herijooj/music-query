@@ -1,0 +1,14 @@
+[Unit]
+Description=Music Query Service
+After=network.target sound.target
+
+[Service]
+Type=simple
+Environment="BEETSDIR={{APP_DIR}}"
+WorkingDirectory={{APP_DIR}}
+ExecStart="{{VENV_PATH}}/bin/gunicorn" -w 1 --threads 4 -b 0.0.0.0:5000 wsgi:app
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

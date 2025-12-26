@@ -19,10 +19,35 @@ if ! command -v pip3 &> /dev/null && ! command -v pip &> /dev/null; then
     # We might rely on venv creation which usually includes pip
 fi
 
+# Check for system beets (avoids compiling numpy/lap on ARM)
+if ! command -v beet &> /dev/null; then
+    echo "Warning: 'beet' command not found."
+    echo "Installing beets from system repository to avoid compilation..."
+    if command -v sudo &> /dev/null; then
+        sudo apt update && sudo apt install -y beets
+    else
+        echo "Error: sudo not found. Please install beets manually:"
+        echo "  apt install beets"
+        exit 1
+    fi
+fi
+
 # 2. Create virtual environment if it doesn't exist
+# 2. Create virtual environment
+if [ -d ".venv" ] && [ ! -f ".venv/bin/pip" ]; then
+    echo "Virtual environment exists but pip is missing. Recreating..."
+    rm -rf .venv
+fi
+
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    python3 -m venv .venv
+    if ! python3 -m venv .venv; then
+        echo "Error: Failed to create virtual environment."
+        echo "Make sure the 'venv' module is properly installed."
+        echo "On Debian/Ubuntu/Armbian systems, run:"
+        echo "  sudo apt install python3-venv"
+        exit 1
+    fi
 else
     echo "Virtual environment already exists."
 fi

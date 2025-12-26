@@ -4,9 +4,11 @@ After=network.target sound.target
 
 [Service]
 Type=simple
-Environment="BEETSDIR={{APP_DIR}}"
+Environment="BEETSDIR=%h/.config/beets"
 WorkingDirectory={{APP_DIR}}
-ExecStart="{{VENV_PATH}}/bin/gunicorn" -w 1 --threads 4 -b 0.0.0.0:5000 wsgi:app
+ExecStart="{{VENV_PATH}}/bin/gunicorn" -w 1 --threads 4 -b 0.0.0.0:5000 wsgi:app --access-logfile - --error-logfile - --log-level info
+StandardOutput=journal
+StandardError=journal
 Restart=always
 RestartSec=5s
 

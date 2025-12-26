@@ -1,4 +1,5 @@
 import os
+import shlex
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,17 +13,11 @@ class Config:
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
 
     # App Settings
-    DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', 'downloads')
+    DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', 'downloads') # Final Destination
+    STAGING_DIR = os.getenv('STAGING_DIR', 'staging')     # Temp folder
     
     # Integrations
     USE_BEETS = os.getenv('USE_BEETS', 'False').lower() == 'true'
-    
-    JELLYFIN_URL = os.getenv('JELLYFIN_URL', '')
-    JELLYFIN_API_KEY = os.getenv('JELLYFIN_API_KEY', '')
-    
-    NAVIDROME_URL = os.getenv('NAVIDROME_URL', '')
-    NAVIDROME_USER = os.getenv('NAVIDROME_USER', '')
-    NAVIDROME_TOKEN = os.getenv('NAVIDROME_TOKEN', '')
     
     # Performance / Hardware
     # Limits for low-end hardware
@@ -34,7 +29,7 @@ class Config:
     ODESLI_API_URL = os.getenv('ODESLI_API_URL', 'https://api.song.link/v1-alpha.1/links?url=')
 
     # Tool Arguments
-    BEETS_ARGS = os.getenv('BEETS_ARGS', 'import -q')
+    BEETS_ARGS = shlex.split(os.getenv('BEETS_ARGS', 'import -q'))
 
     # Audio Download Settings
     AUDIO_CODEC = os.getenv('AUDIO_CODEC', 'm4a')

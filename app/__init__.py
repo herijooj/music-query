@@ -20,4 +20,27 @@ def create_app():
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
+    from .translations import TRANSLATIONS
+    from flask import request
+
+    def get_locale():
+        # 1. Check cookie
+        lang = request.cookies.get('lang')
+        if lang in TRANSLATIONS:
+            return lang
+        
+        # 2. Check Accept-Language header
+        match = request.accept_languages.best_match(TRANSLATIONS.keys())
+        if match:
+            return match
+            
+        return 'en'
+
+    @app.context_processor
+    def inject_translate():
+        def translate(key):
+            locale = get_locale()
+            return TRANSLATIONS.get(locale, TRANSLATIONS['en']).get(key, key)
+        return dict(_=translate, get_locale=get_locale)
+
     return app

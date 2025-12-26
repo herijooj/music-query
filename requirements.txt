@@ -3,5 +3,4 @@ requests
 yt-dlp
 mutagen
 python-dotenv
-beets
 gunicorn

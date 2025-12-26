@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Downloader</title>
+    <title>{{ _('title') }}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -15,20 +17,23 @@
             height: 100vh;
             margin: 0;
         }
+
         .container {
             background: #1e1e1e;
             padding: 2rem;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             width: 100%;
             max-width: 400px;
         }
+
         h1 {
             font-size: 1.5rem;
             margin-bottom: 1.5rem;
             text-align: center;
             color: #ffffff;
         }
+
         input[type="text"] {
             width: 100%;
             padding: 0.75rem;
@@ -39,6 +44,7 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+
         button {
             width: 100%;
             padding: 0.75rem;
@@ -49,37 +55,69 @@
             cursor: pointer;
             font-size: 1rem;
         }
+
         button:hover {
             background-color: #0056b3;
         }
+
         #status {
             margin-top: 1rem;
             font-size: 0.9rem;
             text-align: center;
             color: #aaa;
         }
+
         hr {
             border: 0;
             border-top: 1px solid #333;
             margin: 1.5rem 0;
         }
+
         h3 {
             margin-top: 0;
             color: #ddd;
         }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            border-radius: 50%;
+            background: #2d2d2d;
+            padding: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>Music Downloader</h1>
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="logo">
+        </div>
+        <h1>{{ _('title') }}</h1>
         <form id="downloadForm">
-            <input type="text" id="url" name="url" placeholder="Paste music URL (Spotify, Apple, etc.)" required>
-            <button type="submit">Download</button>
+            <input type="text" id="url" name="url" placeholder="{{ _('url_placeholder') }}" required>
+            <button type="submit">{{ _('download_button') }}</button>
         </form>
         <div id="status"></div>
         <hr>
-        <h3>Recent Downloads</h3>
-        <ul id="fileList" style="list-style: none; padding: 0; font-size: 0.85rem; color: #ccc;"></ul>
+        <h3>{{ _('recent_downloads') }}</h3>
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #333; padding: 5px; border-radius: 4px;">
+            <ul id="fileList" style="list-style: none; padding: 0; font-size: 0.85rem; color: #ccc; margin: 0;"></ul>
+        </div>
+        <div style="margin-top: 1rem; text-align: center; font-size: 0.8rem;">
+            <a href="/set_language/en"
+                style="color: {{ '#fff' if get_locale() == 'en' else '#666' }}; text-decoration: none; font-weight: {{ 'bold' if get_locale() == 'en' else 'normal' }};">EN</a>
+            |
+            <a href="/set_language/pt"
+                style="color: {{ '#fff' if get_locale() == 'pt' else '#666' }}; text-decoration: none; font-weight: {{ 'bold' if get_locale() == 'pt' else 'normal' }};">PT-BR</a>
+        </div>
     </div>
 
     <script>
@@ -90,8 +128,8 @@
                 const list = document.getElementById('fileList');
                 list.innerHTML = files.map(f => `
                     <li style="margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">${f}</span>
-                        <a href="/download_file/${encodeURIComponent(f)}" style="text-decoration: none; color: #4dabf7; font-weight: bold;">↓</a>
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">${f.display || f}</span>
+                        <a href="/download_file/${encodeURIComponent(f.path || f)}" style="text-decoration: none; color: #4dabf7; font-weight: bold;">↓</a>
                     </li>
                 `).join('');
             } catch (err) {
@@ -103,12 +141,48 @@
         setInterval(updateFileList, 5000);
         updateFileList();
 
+        function renderStatus(status) {
+            const statusEl = document.getElementById('status');
+            if (!status) {
+                statusEl.textContent = '';
+                return;
+            }
+            const state = status.state || 'pending';
+            const message = status.message || status.stage || '';
+            if (state === 'failed') {
+                statusEl.textContent = status.error || message || 'Failed';
+                statusEl.style.color = '#ff6b6b';
+            } else if (state === 'completed') {
+                statusEl.textContent = message || 'Completed';
+                statusEl.style.color = '#51cf66';
+            } else {
+                statusEl.textContent = message || 'Working...';
+                statusEl.style.color = '#aaa';
+            }
+        }
+
+        async function pollJob(jobId, attempt = 0) {
+            try {
+                const res = await fetch(`/job/${jobId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                renderStatus(data);
+                if (data.state === 'completed' || data.state === 'failed') {
+                    updateFileList();
+                    return;
+                }
+            } catch (err) {
+                if (attempt > 5) return;
+            }
+            setTimeout(() => pollJob(jobId, attempt + 1), 2000);
+        }
+
         document.getElementById('downloadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const url = document.getElementById('url').value;
             const status = document.getElementById('status');
-            status.textContent = 'Resolving URL...';
-            
+            status.textContent = "{{ _('resolving_url') }}";
+
             try {
                 const response = await fetch('/download', {
                     method: 'POST',
@@ -119,18 +193,21 @@
                 });
                 const data = await response.json();
                 if (data.error) {
-                    status.textContent = 'Error: ' + data.error;
+                    status.textContent = data.error;
                     status.style.color = '#ff6b6b';
                 } else {
-                    status.textContent = data.message;
-                    status.style.color = '#51cf66';
+                    renderStatus({ state: 'queued', message: data.message });
                     document.getElementById('url').value = '';
+                    if (data.job_id) {
+                        pollJob(data.job_id);
+                    }
                 }
             } catch (err) {
-                status.textContent = 'An error occurred.';
+                status.textContent = "{{ _('error_generic') }}";
                 status.style.color = '#ff6b6b';
             }
         });
     </script>
 </body>
+
 </html>

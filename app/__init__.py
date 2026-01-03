@@ -20,6 +20,17 @@ def create_app():
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
+    # Initialize Flasgger for API documentation
+    from flasgger import Swagger
+    swagger = Swagger(app, template={
+        'info': {
+            'title': 'Music Query API',
+            'description': 'API for downloading music from YouTube and other platforms',
+            'version': '1.0'
+        },
+        'swagger': '2.0'
+    })
+
     from .translations import TRANSLATIONS
     from flask import request
 
@@ -41,6 +52,6 @@ def create_app():
         def translate(key):
             locale = get_locale()
             return TRANSLATIONS.get(locale, TRANSLATIONS['en']).get(key, key)
-        return dict(_=translate, get_locale=get_locale)
+        return dict(_=translate, get_locale=get_locale, available_locales=list(TRANSLATIONS.keys()))
 
     return app

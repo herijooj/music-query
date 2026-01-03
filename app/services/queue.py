@@ -36,6 +36,30 @@ class JobQueue:
 
         self._initialized = True
 
+        # Start cleanup thread
+        cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
+        cleanup_thread.start()
+
+    def _cleanup_loop(self):
+        """Periodically clean up old job statuses."""
+        while self.running:
+            time.sleep(600)  # Run every 10 minutes
+            self._cleanup_old_statuses()
+
+    def _cleanup_old_statuses(self, max_age_seconds=3600):
+        """Remove statuses older than max_age_seconds."""
+        now = time.time()
+        expired = []
+        with self._lock:
+            for jid, entry in self._statuses.items():
+                timestamp = entry.get('timestamp', 0)
+                if now - timestamp > max_age_seconds:
+                    expired.append(jid)
+            for jid in expired:
+                del self._statuses[jid]
+        if expired:
+            logger.info(f"Cleaned up {len(expired)} expired job statuses")
+
     def add_job(self, job_func, *args, include_job_id=False, **kwargs):
         """
         Adds a job to the queue.
@@ -70,7 +94,7 @@ class JobQueue:
                 with self._lock:
                     self.current_job = job
                     self.current_jobs.add(job['id'])
-                job['status'] = 'processing'
+                    job['status'] = 'processing'
                 logger.info(f"Processing job {job['id']}...")
                 self._update_status(job['id'], state='processing', stage='starting')
                 
@@ -131,6 +155,14 @@ class JobQueue:
     def get_job_status(self, job_id):
         with self._lock:
             return self._statuses.get(job_id)
+
+    def shutdown(self, timeout=5):
+        """Gracefully shut down all worker threads."""
+        logger.info("Shutting down job queue...")
+        self.running = False
+        for t in self.worker_threads:
+            t.join(timeout)
+        logger.info("Job queue shut down complete.")
 
 # Global instance
 job_queue = JobQueue()

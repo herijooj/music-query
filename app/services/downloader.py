@@ -1,12 +1,12 @@
 import os
 import requests
+import shutil
 import yt_dlp
 from urllib.parse import quote_plus
-from ..config import Config
+from ..config import Config, JobStage
 from .integrations import run_beets_import
 from .queue import job_queue
 import logging
-import uuid
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ def download_task(url, job_id=None):
         if job_id:
             job_queue.update_job_status(job_id, stage=stage, state=state, message=message, error=error)
 
-    set_status(stage='resolving_url', state='processing', message='Resolving URL')
+    set_status(stage=JobStage.RESOLVING_URL, state='processing', message='Resolving URL')
 
     resolved_url = resolve_url(url)
     logger.info(f"Starting download for: {resolved_url}")
@@ -58,7 +58,7 @@ def download_task(url, job_id=None):
         if 'youtu' in resolved_url:
             # Will be updated with actual title from yt-dlp
             title = resolved_url.split('v=')[-1][:11]  # Video ID fallback
-    except:
+    except (ValueError, IndexError):
         title = None
 
     staging_root = Config.STAGING_DIR
@@ -89,48 +89,48 @@ def download_task(url, job_id=None):
         'outtmpl': f'{staging_dir}/%(album|Unknown Album)s/%(playlist_index|00)s - %(title)s - %(artist|Unknown Artist)s.%(ext)s',
         'noplaylist': False,
         'ignoreerrors': True,
-        'quiet': False,
-        'no_warnings': True,
-        'keepvideo': False, # Ensure only audio is kept
+        'quiet': Config.YTDL_QUIET,
+        'no_warnings': Config.YTDL_NO_WARNINGS,
+        'keepvideo': False,
+        'socket_timeout': 30,  # 30 second timeout
     }
     
     # Execute download
     try:
-        set_status(stage='downloading', message='Downloading')
+        set_status(stage=JobStage.DOWNLOADING, message='Downloading')
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(resolved_url, download=True)
-            
+
             if not info:
                 logger.error("Download failed: No info extracted.")
-                set_status(stage='failed', state='failed', error='No info extracted')
+                set_status(stage=JobStage.FAILED, state='failed', error='No info extracted')
                 return
-            
+
             # Extract title from info and update status
             title = info.get('title', 'Unknown')
             artist = info.get('artist', info.get('uploader', 'Unknown Artist'))
-            set_status(stage='downloading', message=f'Downloaded: {artist} - {title}')
-        set_status(stage='postprocessing', message='Post-processing')
-        
+            set_status(stage=JobStage.DOWNLOADING, message=f'Downloaded: {artist} - {title}')
+        set_status(stage=JobStage.POSTPROCESSING, message='Post-processing')
+
         # Integrations
         import_success = False
         if Config.USE_BEETS:
-            set_status(stage='beets_import', message='Running beets import')
+            set_status(stage=JobStage.BEETS_IMPORT, message='Running beets import')
             # Import from staging to library
             import_success = run_beets_import(staging_dir)
-        
+
         # Fallback to manual move if Beets disabled or failed
         if not Config.USE_BEETS or not import_success:
             if Config.USE_BEETS and not import_success:
                 logger.warning("Beets import failed, falling back to manual move.")
-            
+
             # Manual move from staging to download dir
-            import shutil
             logger.info(f"Moving files from {staging_dir} to {Config.DOWNLOAD_DIR}")
-            set_status(stage='moving_files', message='Moving files to library')
+            set_status(stage=JobStage.MOVING_FILES, message='Moving files to library')
             # Simplified move: merge directories
             if not os.path.exists(Config.DOWNLOAD_DIR):
                 os.makedirs(Config.DOWNLOAD_DIR)
-            
+
             try:
                 # Iterate and move
                 for root, dirs, files in os.walk(staging_dir):
@@ -138,25 +138,24 @@ def download_task(url, job_id=None):
                         src_path = os.path.join(root, file)
                         rel_path = os.path.relpath(src_path, staging_dir)
                         dest_path = os.path.join(Config.DOWNLOAD_DIR, rel_path)
-                        
+
                         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                         shutil.move(src_path, dest_path)
-                
+
                 # Cleanup staging for this job
                 if os.path.exists(staging_dir):
                     shutil.rmtree(staging_dir)
             except Exception as e:
                 logger.error(f"Error moving files: {e}")
-                set_status(stage='failed', state='failed', error=str(e))
+                set_status(stage=JobStage.FAILED, state='failed', error=str(e))
                 return
         else:
             # Beets already handled cleanup
             if os.path.exists(staging_dir):
-                import shutil
                 shutil.rmtree(staging_dir)
 
-        set_status(stage='done', state='completed', message='Download completed')
+        set_status(stage=JobStage.DONE, state='completed', message='Download completed')
     except Exception as e:
         logger.error(f"Download task failed: {e}")
-        set_status(stage='failed', state='failed', error=str(e))
+        set_status(stage=JobStage.FAILED, state='failed', error=str(e))
         raise e

@@ -14,6 +14,7 @@ pkgs.mkShell {
       python-dotenv
       beets
       gunicorn
+      flasgger
     ]))
 
     # System dependencies

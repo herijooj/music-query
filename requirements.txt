@@ -4,3 +4,4 @@ yt-dlp
 mutagen
 python-dotenv
 gunicorn
+flasgger

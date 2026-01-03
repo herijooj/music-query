@@ -22,7 +22,6 @@ class Config:
     # Performance / Hardware
     # Limits for low-end hardware
     MAX_CONCURRENT_DOWNLOADS = int(os.getenv('MAX_CONCURRENT_DOWNLOADS', 1))
-    PROCESS_NICE_VALUE = int(os.getenv('PROCESS_NICE_VALUE', 10)) # Lower priority for heavy tasks
     REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 10))
 
     # External APIs
@@ -33,4 +32,21 @@ class Config:
 
     # Audio Download Settings
     AUDIO_CODEC = os.getenv('AUDIO_CODEC', 'm4a')
+    if AUDIO_CODEC not in ('m4a', 'mp3', 'opus', 'flac', 'wav'):
+        raise ValueError(f"Invalid AUDIO_CODEC: {AUDIO_CODEC}. Must be one of: m4a, mp3, opus, flac, wav")
     AUDIO_QUALITY = os.getenv('AUDIO_QUALITY', '192')
+
+    # yt-dlp Logging
+    YTDL_QUIET = os.getenv('YTDL_QUIET', 'True').lower() == 'true'
+    YTDL_NO_WARNINGS = os.getenv('YTDL_NO_WARNINGS', 'True').lower() == 'true'
+
+
+# Download job stages
+class JobStage:
+    RESOLVING_URL = 'resolving_url'
+    DOWNLOADING = 'downloading'
+    POSTPROCESSING = 'postprocessing'
+    BEETS_IMPORT = 'beets_import'
+    MOVING_FILES = 'moving_files'
+    DONE = 'done'
+    FAILED = 'failed'
